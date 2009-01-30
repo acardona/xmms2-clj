@@ -1,12 +1,22 @@
 ; Albert Cardona 20090129
+; Released under the General Public License in its latest version.
+;
 ; Assumes xmms2 is installed and in the $PATH
 ; and that there is already a playlist loaded into it.
 ;
-; Shows the list of files and enables play on double-click
+; Shows the list of tracks and enables play on double-click
 ; by calling "xmms2 jump <playlist-index>"
+;
+; From a clojure prompt, run xmms2 commands like:
+; (in-ns 'xmms2.music)
+; (xmms2 "info")
+; (xmms2 "pause")
+; (xmms2 "jump 10")
+;
+; Do NOT run (xmms2 "status")
 
 
-(ns xmms2.music
+(ns xmms2.gui
   (:import (javax.swing JTable JFrame JScrollPane)
            (javax.swing.table AbstractTableModel)
            (java.io BufferedReader InputStreamReader)
