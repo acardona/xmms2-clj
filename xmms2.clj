@@ -32,31 +32,11 @@
       tracks
       (assoc tracks (Integer/parseInt (.substring line (inc i1) i2)) (.substring line (+ 2 i3))))))
 
-;(defn find-tracks
-;  "Query xmms2 list, returns a map"
-;  []
-;  (with-open [br (BufferedReader. (InputStreamReader. (.getInputStream (.exec (Runtime/getRuntime) "xmms2 list"))))]
-;    (loop [row (int 0)
-;           tracks {}
-;           line (.readLine br)]
-;      (if (or (not line)
-;              (== 0 (.length line)))
-;        tracks
-;        (recur (int (inc row))
-;               (assoc-track tracks line)
-;               (.readLine br))))))
-
 (defmacro exec
   "Execute a command on the shell, passing to the given function the lazy sequence of lines read as output, and the rest of arguments."
   [cmd pred & args]
   `(with-open [br# (BufferedReader. (InputStreamReader. (.getInputStream (.exec (Runtime/getRuntime) ~cmd))))]
     (~pred (line-seq br#) ~@args)))
-
-;(defn find-tracks
-;  "Query xmms2 list, returns a map of track number vs. title."
-;  []
-;  (with-open [br (BufferedReader. (InputStreamReader. (.getInputStream (.exec (Runtime/getRuntime) "xmms2 list"))))]
-;    (reduce assoc-track {} (line-seq br))))
 
 (defn find-tracks
   "Query xmms2 list, returns a map of track number vs. title."
@@ -86,11 +66,6 @@
     ;(doseq [[k v] tracks]
     ;  (println k v))
     (JTable. model)))
-
-;(defn xmms2
-;  "Execute an XMMS2 command+args."
-;  [cmd]
-;  (.exec (Runtime/getRuntime) (str "xmms2 " cmd)))
 
 (defn xmms2
   "Execute an XMMS2 command+args, and print its output."
