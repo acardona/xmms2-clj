@@ -102,11 +102,13 @@
                                           (InputStreamReader. 
                                             (.getInputStream
                                               (.exec (Runtime/getRuntime) "xmms2 status"))))]
-                             (loop [lines (line-seq br)]
-                               (if (not (.isInterrupted @self))
-                                 (do
-                                   (.setText label (first lines))
-                                   (recur (rest lines)))))))
+                           ; Could use (doseq [line (take-while .... but then I'd hold onto the head
+                           ; of the potentially infinite line-seq!
+                           (loop [lines (line-seq br)]
+                             (if (not (.isInterrupted @self))
+                               (do
+                                 (.setText label (first lines))
+                                 (recur (rest lines)))))))
                                                             "XMMS2 Status Monitor"))))
                        (.start @self)
                        @self)))))
@@ -124,6 +126,11 @@
                        (.interrupt old))
                      nil)))))
 
+(defn play
+  "Play a song given its index in the playlist."
+  [row]
+  (xmms2 (str "jump " row)))
+
 
 (defn make-gui []
   (let [table (create-table)
@@ -131,11 +138,6 @@
         label (JLabel. "Not playing.")
         panel (JPanel.)
         frame (JFrame. "XMMS2")]
-
-    (defn play
-      "Play a song given its index in the playlist."
-      [row]
-      (xmms2 (str "jump " row)))
 
     (.addMouseListener table
       (proxy [MouseAdapter] []
