@@ -17,10 +17,10 @@
 
 
 (ns xmms2.gui
-  (:import (javax.swing JTable JFrame JScrollPane)
+  (:import (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout)
            (javax.swing.table AbstractTableModel)
            (java.io BufferedReader InputStreamReader)
-           (java.awt.event MouseAdapter)))
+           (java.awt.event MouseAdapter WindowAdapter KeyAdapter KeyEvent)))
 
 (defn- assoc-track
   "[0/1] Some title here --> {0 \"Some title here\"})"
@@ -33,10 +33,21 @@
       (assoc tracks (Integer/parseInt (.substring line (inc i1) i2)) (.substring line (+ 2 i3))))))
 
 (defmacro exec
-  "Execute a command on the shell, passing to the given function the lazy sequence of lines read as output, and the rest of arguments."
+  "Execute a command on the shell, passing to the given function the lazy sequence of lines read as output, and the rest of arguments.
+   Errors printing to stderr are println'ed."
   [cmd pred & args]
-  `(with-open [br# (BufferedReader. (InputStreamReader. (.getInputStream (.exec (Runtime/getRuntime) ~cmd))))]
-    (~pred (line-seq br#) ~@args)))
+  `(let [proc# (.exec (Runtime/getRuntime) ~cmd)
+         to-br# (fn [s#] (BufferedReader. (InputStreamReader. s#)))]
+    (with-open [in# (to-br# (.getInputStream proc#))
+                err# (to-br# (.getErrorStream proc#))]
+      (doseq [l# (line-seq err#)] (println l#))
+      (~pred (line-seq in#) ~@args))))
+
+(defn exec-pr
+  "Execute a command on the shell and print its output."
+  [cmd]
+  (exec cmd
+        #(doseq [line %1] (println line))))
 
 (defn find-tracks
   "Query xmms2 list, returns a map of track number vs. title."
@@ -70,24 +81,93 @@
 (defn xmms2
   "Execute an XMMS2 command+args, and print its output."
   [cmd]
-  (exec (str "xmms2 " cmd)
-        #(doseq [line %1] (println line))))
+  (if (= (.trim cmd) "status")
+    (println "Can't execute 'status'!")
+    (exec-pr (str "xmms2 " cmd))))
+
+(let [status-thread (ref nil)]
+  (defn monitor-status
+    "Monitors current song status in a separate thread
+     printing the status to the given label.
+     If called more than once, it interrupts the previous thread
+     and starts a new one with the given label."
+    [label]
+    (dosync (alter status-thread
+                   (fn [old]
+                     (if old
+                       (.interrupt old))
+                     (let [self (ref nil)]
+                       (dosync (alter self (fn [_] (Thread. (fn []
+                         (with-open [br (BufferedReader.
+                                          (InputStreamReader. 
+                                            (.getInputStream
+                                              (.exec (Runtime/getRuntime) "xmms2 status"))))]
+                             (loop [lines (line-seq br)]
+                               (if (not (.isInterrupted @self))
+                                 (do
+                                   (.setText label (first lines))
+                                   (recur (rest lines)))))))
+                                                            "XMMS2 Status Monitor"))))
+                       (.start @self)
+                       @self)))))
+
+  (defn debug-status
+    []
+    (println "Status thread: " @status-thread))
+
+  (defn quit-status
+    "Stop monitoring status."
+    []
+    (dosync (alter status-thread
+                   (fn [old]
+                     (if old
+                       (.interrupt old))
+                     nil)))))
+
 
 (defn make-gui []
   (let [table (create-table)
-        panel (JScrollPane. table)
+        jsp (JScrollPane. table)
+        label (JLabel. "Not playing.")
+        panel (JPanel.)
         frame (JFrame. "XMMS2")]
+
+    (defn play
+      "Play a song given its index in the playlist."
+      [row]
+      (xmms2 (str "jump " row)))
+
     (.addMouseListener table
       (proxy [MouseAdapter] []
         (mousePressed [evt]
           (if (= 2 (.getClickCount evt))
             (let [row (.rowAtPoint table (.getPoint evt))]
-              (xmms2 (str "jump " row)))))))
+              (play row))))))
+
+    (doto panel
+      (.setLayout (BoxLayout. panel BoxLayout/Y_AXIS))
+      (.add label)
+      (.add jsp))
 
     (doto frame
       (.add panel)
       (.pack)
-      (.setVisible true))))
+      (.setVisible true)
+      (.addWindowListener (proxy (WindowAdapter) []
+                            (windowClosing [evt]
+                              (quit-status)))))
+
+    (monitor-status label)
+
+    (let [kl (proxy (KeyAdapter) []
+                      (keyPressed [evt]
+                        (let [key-code (.getKeyCode evt)]
+                          (cond
+                            (= key-code KeyEvent/VK_SPACE) (xmms2 "togglePlay")
+                            (= key-code KeyEvent/VK_Q) (println "Q: queuing not implemented yet.")))
+                        (.consume evt)))]
+      (.addKeyListener table kl)
+      (.addKeyListener frame kl))))
 
 
 (make-gui)
