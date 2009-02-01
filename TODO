@@ -1,0 +1,4 @@
+* Add a queueing system: a third column in the table, where 'q' key queues the selected row.
+  The column cell prints empty if not queued.
+
+DONE * Add space bar togglePlay
