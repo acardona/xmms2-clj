@@ -86,6 +86,22 @@
     (exec-pr (str "xmms2 " cmd))))
 
 (let [status-thread (ref nil)]
+  (defn- monitor
+    "Returns a function that prints the continuous output of 'xmms2 status' by repeatedly calling setText to the label."
+    [label]
+    (fn []
+      (with-open [br (BufferedReader.
+                       (InputStreamReader. 
+                         (.getInputStream
+                           (.exec (Runtime/getRuntime) "xmms2 status"))))]
+        ; Could use (doseq [line (take-while .... but then I'd hold onto the head
+        ; of the potentially infinite line-seq!
+        (loop [lines (line-seq br)]
+          (if (not (.isInterrupted (Thread/currentThread)))
+            (do
+              (.setText label (first lines))
+              (recur (rest lines))))))))
+
   (defn monitor-status
     "Monitors current song status in a separate thread
      printing the status to the given label.
@@ -96,19 +112,7 @@
                    (fn [old]
                      (if old
                        (.interrupt old))
-                     (let [runnable (fn []
-                            (with-open [br (BufferedReader.
-                                             (InputStreamReader. 
-                                               (.getInputStream
-                                                 (.exec (Runtime/getRuntime) "xmms2 status"))))]
-                              ; Could use (doseq [line (take-while .... but then I'd hold onto the head
-                              ; of the potentially infinite line-seq!
-                              (loop [lines (line-seq br)]
-                                (if (not (.isInterrupted (Thread/currentThread)))
-                                  (do
-                                    (.setText label (first lines))
-                                    (recur (rest lines)))))))
-                           thread (Thread. runnable "XMMS2 Status Monitor")]
+                     (let [thread (Thread. (monitor label) "XMMS2 Status Monitor")]
                        (.start thread)
                        thread))))
 
