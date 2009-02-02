@@ -96,22 +96,21 @@
                    (fn [old]
                      (if old
                        (.interrupt old))
-                     (let [self (ref nil)]
-                       (dosync (alter self (fn [_] (Thread. (fn []
-                         (with-open [br (BufferedReader.
-                                          (InputStreamReader. 
-                                            (.getInputStream
-                                              (.exec (Runtime/getRuntime) "xmms2 status"))))]
-                           ; Could use (doseq [line (take-while .... but then I'd hold onto the head
-                           ; of the potentially infinite line-seq!
-                           (loop [lines (line-seq br)]
-                             (if (not (.isInterrupted @self))
-                               (do
-                                 (.setText label (first lines))
-                                 (recur (rest lines)))))))
-                                                            "XMMS2 Status Monitor"))))
-                       (.start @self)
-                       @self)))))
+                     (let [runnable (fn []
+                            (with-open [br (BufferedReader.
+                                             (InputStreamReader. 
+                                               (.getInputStream
+                                                 (.exec (Runtime/getRuntime) "xmms2 status"))))]
+                              ; Could use (doseq [line (take-while .... but then I'd hold onto the head
+                              ; of the potentially infinite line-seq!
+                              (loop [lines (line-seq br)]
+                                (if (not (.isInterrupted (Thread/currentThread)))
+                                  (do
+                                    (.setText label (first lines))
+                                    (recur (rest lines)))))))
+                           thread (Thread. runnable "XMMS2 Status Monitor")]
+                       (.start thread)
+                       thread))))
 
   (defn debug-status
     []
@@ -124,7 +123,7 @@
                    (fn [old]
                      (if old
                        (.interrupt old))
-                     nil)))))
+                     nil))))))
 
 (defn play
   "Play a song given its index in the playlist."
