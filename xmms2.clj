@@ -55,6 +55,18 @@
   (exec "xmms2 list"
         (fn [lines] (reduce assoc-track {} lines))))
 
+(defn text-width
+  "Measure the width, in pixels, of the String text, by the Font and FontMetrics of component."
+  [#^String text #^java.awt.Component component]
+  ; Get the int[] of widths of the first 256 chars
+  (let [#^ints ws (.getWidths (.getFontMetrics component (.getFont component)))]
+    (reduce (fn [sum c]
+              (if (< (int c) (int 256))
+                (+ sum (aget ws (int c)))
+                sum))
+            0
+            text)))
+
 (defn create-table []
   (let [col-titles {0 "Track" 1 "Title"}
         tracks (find-tracks)
@@ -73,10 +85,18 @@
                     (tracks row)))
                 (isCellEditable [row col]
                   false)
-                (setValueAt [ob row col] nil))]
+                (setValueAt [ob row col] nil))
+        table (JTable. model)]
     ;(doseq [[k v] tracks]
     ;  (println k v))
-    (JTable. model)))
+    ; The last track number is the largest number:
+    ; adjust the cell width to it (plus a space to avoid '...')
+    (let [col-model (.. table getColumnModel (getColumn 0))
+          last-row (dec (count tracks))
+          cell (.. table (getDefaultRenderer (.getColumnClass model 0))
+                 (getTableCellRendererComponent table last-row false false last-row 0))]
+      (.setMaxWidth col-model (text-width (str (.getText cell) \space) cell))
+    table)))
 
 (defn xmms2
   "Execute an XMMS2 command+args, and print its output."
@@ -133,6 +153,17 @@
   "Play a song given its index in the playlist."
   [row]
   (xmms2 (str "jump " row)))
+
+(defn get-id
+  "Return the id of the row"
+  [row]
+  (println "TODO! Returning row for now")
+  row)
+
+(defn queue
+  "Queue a song given its index in the playlist."
+  [row]
+  (xmms2 (str "addid queue " (get-id row))))
 
 
 (defn make-gui []
